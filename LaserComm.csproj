@@ -62,9 +62,11 @@
     <Compile Include="Network\LaserCommLink.cs" />
     <Compile Include="Network\LaserCommNetwork.cs" />
     <Compile Include="Network\LaserCommNode.cs" />
+    <Compile Include="Network\OpticalOccluder.cs" />
     <Compile Include="PartModules\Module2AxisTracking.cs" />
     <Compile Include="PartModules\ModuleOpticalComm.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Settings.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="AfterBuild">

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using CommNet.Occluders;
 using HarmonyLib;
+using LaserComm.Network;
 
 namespace LaserComm
 {
@@ -13,9 +14,22 @@ namespace LaserComm
         // optical occluders
         // laserhome
         // test science with commnet disabled
-        public Dictionary<CommNode, LaserCommNode> laserNodes = new Dictionary<CommNode, LaserCommNode>();
-
         public static LaserCommNetwork Instance;
+
+        public Dictionary<CommNode, LaserCommNode> laserNodes = new Dictionary<CommNode, LaserCommNode>();
+        public List<OpticalOccluder> opticalOccluders;
+
+        public static bool GroundStationsUnlocked
+        {
+            get
+            {
+                if (ScenarioUpgradeableFacilities.Instance == null)
+                    return true;
+
+                var maxLevel = ScenarioUpgradeableFacilities.GetFacilityLevelCount(SpaceCenterFacility.TrackingStation);
+                return ScenarioUpgradeableFacilities.GetFacilityLevel(SpaceCenterFacility.TrackingStation) == maxLevel;
+            }
+        }
 
         public override CommNode Add(CommNode conn)
         {
@@ -25,11 +39,11 @@ namespace LaserComm
             base.Add(conn);
 
             var laserNode = new LaserCommNode(conn);
-            // TODO only for some
-            if (conn.isHome)
+
+            if (conn.isHome && GroundStationsUnlocked)
             {
-                laserNode.laserRange = double.PositiveInfinity; // TODO delet
-                laserNode.laserRelayRange = double.PositiveInfinity;
+                if (Settings.Instance.allGroundStationsHaveLasers || conn.name == "KSC")
+                    laserNode.laserRelayRange = double.PositiveInfinity;
             }
 
             laserNodes.Add(conn, laserNode);
@@ -42,6 +56,12 @@ namespace LaserComm
             if (conn != null)
                 laserNodes.Remove(conn);
             return base.Remove(conn);
+        }
+
+        public void Add(OpticalOccluder occluder)
+        {
+            if (occluder != null)
+                opticalOccluders.Add(occluder);
         }
 
         protected override bool SetNodeConnection(CommNode a, CommNode b)
@@ -65,11 +85,9 @@ namespace LaserComm
             if (aCanRelay || bCanRelay)
             {
                 double distance = Math.Sqrt(distanceSqr);
-                // TODO optical occluders
-                if (TestOpticalOcclusion(a.precisePosition, b.precisePosition, distance))
+                float multipler = ApplyOpticalOcclusion(a.precisePosition, b.precisePosition, distance);
+                if (multipler != 0)
                 {
-                    // TODO signal strength multipler
-                    // opaque atmo
                     LaserConnect(la, lb, distance, aCanRelay, bCanRelay);
                     return true;
                 }
@@ -110,20 +128,20 @@ namespace LaserComm
             link.bothRelay = link.aCanRelay && link.bCanRelay;
         }
 
-        protected bool TestOpticalOcclusion(Vector3d aPos, Vector3d bPos, double distance)
+        protected float ApplyOpticalOcclusion(Vector3d aPos, Vector3d bPos, double distance)
         {
-            //TODO
-            //foreach (var occluder in occluders)
-            //{
-            //    if (!occluder.InRange(aPos, distance))
-            //        continue;
+            float multipler = 1.0f;
+            foreach (var occluder in opticalOccluders)
+            {
+                if (!occluder.InRange(aPos, distance))
+                    continue;
 
-            //    if (!occluder.Raycast(aPos, bPos))
-            //        continue;
+                multipler *= occluder.Raycast(aPos, bPos);
+                if (multipler == 0.0f)
+                    break;
+            }
 
-            //    return false;
-            //}
-            return true;
+            return multipler;
         }
 
         static public LaserCommLink GetLaserLink(CommLink link)
@@ -149,5 +167,4 @@ namespace LaserComm
             return false;
         }
     }
-
 }
