@@ -1,0 +1,78 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <Import Condition="Exists('$(SolutionDir)\KSPDevPath.xml')" Project="$(SolutionDir)\KSPDevPath.xml" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{E6770940-D799-40E7-9AE4-64C08CF10042}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>LaserComm</RootNamespace>
+    <AssemblyName>LaserComm</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+    <StartAction>Program</StartAction>
+    <StartProgram>$(KSPInstallPath)\KSP_x64.exe</StartProgram>
+    <StartWorkingDirectory>$(KSPInstallPath)</StartWorkingDirectory>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>portable</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="$(KSPInstallPath)\GameData\000_Harmony\0Harmony.dll">
+      <Name>Harmony</Name>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="$(KSPInstallPath)\KSP_x64_Data\Managed\UnityEngine*.dll">
+      <Name>UnityEngine</Name>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="$(KSPInstallPath)\KSP_x64_Data\Managed\Assembly-CSharp.dll">
+      <Name>Assembly-CSharp</Name>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="$(KSPInstallPath)\KSP_x64_Data\Managed\Assembly-CSharp-firstpass.dll">
+      <Name>Assembly-CSharp-firstpass</Name>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Harmony.cs" />
+    <Compile Include="Network\CommNetVesselPatches.cs" />
+    <Compile Include="Network\LaserCommLink.cs" />
+    <Compile Include="Network\LaserCommNetwork.cs" />
+    <Compile Include="Network\LaserCommNode.cs" />
+    <Compile Include="PartModules\Module2AxisTracking.cs" />
+    <Compile Include="PartModules\ModuleOpticalComm.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Target Name="AfterBuild">
+    <ItemGroup>
+      <GameDataFiles Include="$(SolutionDir)\GameData\$(ProjectName)\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(GameDataFiles)" DestinationFolder="$(KSPInstallPath)\GameData\$(ProjectName)\" />
+    <Copy SourceFiles="$(TargetDir)$(ProjectName).dll" DestinationFolder="$(KSPInstallPath)\GameData\$(ProjectName)\" />
+    <Copy SourceFiles="$(TargetDir)$(ProjectName).pdb" DestinationFolder="$(KSPInstallPath)\GameData\$(ProjectName)\" />
+  </Target>
+</Project>

@@ -1,0 +1,5 @@
+bin/
+obj/
+.vs/
+KSPDevPath.xml
+*.csproj.user
