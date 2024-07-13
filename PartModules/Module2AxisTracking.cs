@@ -9,7 +9,7 @@ using static GameEvents;
 
 namespace LaserComm
 {
-    // NOTE: part should be pointed towards positive Z (negative Y in blender)
+    // NOTE: part should be pointed towards positive Z
     public class Module2AxisTracking : PartModule, IMultipleDragCube
     {
         [KSPField(guiActive = true, guiName = "#autoLOC_7001219")]

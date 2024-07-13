@@ -49,19 +49,19 @@ namespace LaserComm.Network
                 var intersectDist2 = (float)(-halfB + Math.Sqrt(innerDiscriminant));
 
                 if (intersectDist1 > 0 && intersectDist2 > 0)
-                    return 1.0f; // full occlusion
+                    return 0.0f; // full occlusion
 
                 if (source.sqrMagnitude >= outerRSqr)
-                    return 0.0f; // facing away outside atmo, full miss
+                    return 1.0f; // facing away outside atmo, full miss
             }
             else if (partialOcclusionExtraRadius == 0)
             {
-                return 0.0f; // no atmosphere, full miss
+                return 1.0f; // no atmosphere, full miss
             }
 
             double outerDiscriminant = halfB * halfB - source.sqrMagnitude + outerRSqr;
             if (outerDiscriminant <= 0)
-                return 0.0f; // full miss
+                return 1.0f; // full miss
 
             var atmoIntersectDist1 = (float)(-halfB - Math.Sqrt(outerDiscriminant));
             var atmoIntersectDist2 = (float)(-halfB + Math.Sqrt(outerDiscriminant));
@@ -77,7 +77,7 @@ namespace LaserComm.Network
         protected float RayMarchAtmosphere(Vector3d direction, Vector3d start, Vector3d end)
         {
             // TODO
-            return 0.0f;
+            return 1.0f;
         }
     }
 
@@ -86,7 +86,7 @@ namespace LaserComm.Network
     {
         static void Postfix(ref CelestialBody ___body)
         {
-            if (___body != null)
+            if (___body != null && LaserCommNetwork.Instance != null)
                 LaserCommNetwork.Instance.Add(new OpticalOccluder(___body));
         }
     }

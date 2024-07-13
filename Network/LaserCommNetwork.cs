@@ -17,7 +17,7 @@ namespace LaserComm
         public static LaserCommNetwork Instance;
 
         public Dictionary<CommNode, LaserCommNode> laserNodes = new Dictionary<CommNode, LaserCommNode>();
-        public List<OpticalOccluder> opticalOccluders;
+        public List<OpticalOccluder> opticalOccluders = new List<OpticalOccluder>();
 
         public static bool GroundStationsUnlocked
         {
@@ -42,7 +42,7 @@ namespace LaserComm
 
             if (conn.isHome && GroundStationsUnlocked)
             {
-                if (Settings.Instance.allGroundStationsHaveLasers || conn.name == "KSC")
+                if (Settings.Instance.allGroundStationsHaveLasers || conn.name.EndsWith(": KSC"))
                     laserNode.laserRelayRange = double.PositiveInfinity;
             }
 
@@ -72,7 +72,7 @@ namespace LaserComm
                 return false;
             }
 
-            base.SetNodeConnection(a, b);
+            bool radioConnected = base.SetNodeConnection(a, b);
 
             var la = laserNodes[a];
             var lb = laserNodes[b];
@@ -93,8 +93,7 @@ namespace LaserComm
                 }
             }
 
-            Disconnect(a, b);
-            return false;
+            return radioConnected;
         }
 
         protected virtual void LaserConnect(LaserCommNode la, LaserCommNode lb, double distance, bool aCanRelay, bool bCanRelay)
@@ -123,9 +122,9 @@ namespace LaserComm
             link.strengthRR = oldLink?.strengthRR ?? 0.0;
             link.strengthAR = oldLink?.strengthAR ?? 0.0;
             link.strengthBR = oldLink?.strengthBR ?? 0.0;
-            link.aCanRelay = a.antennaRelay.power > 0.0 || aCanRelay;
-            link.bCanRelay = b.antennaRelay.power > 0.0 || bCanRelay;
-            link.bothRelay = link.aCanRelay && link.bCanRelay;
+            link.aCanRelay = oldLink?.aCanRelay == true || aCanRelay;
+            link.bCanRelay = oldLink?.bCanRelay == true || bCanRelay;
+            link.bothRelay = oldLink?.bothRelay == true || (aCanRelay && bCanRelay);
         }
 
         protected float ApplyOpticalOcclusion(Vector3d aPos, Vector3d bPos, double distance)

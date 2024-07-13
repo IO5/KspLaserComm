@@ -3,3 +3,6 @@ obj/
 .vs/
 KSPDevPath.xml
 *.csproj.user
+@thumbs/*
+*.dll
+*.pdb
