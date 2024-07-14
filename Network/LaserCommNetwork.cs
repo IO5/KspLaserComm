@@ -153,7 +153,6 @@ namespace LaserComm
 
             return Instance.Links.Find(l => l.a == link.a || l.b == link.a) as LaserCommLink;
         }
-
     }
 
     [HarmonyPatch(typeof(CommNetNetwork), "ResetNetwork")]

@@ -51,10 +51,11 @@ namespace LaserComm
 
         [KSPField(isPersistant = true)]
         public float currentPitch = 0.0f;
+
         public Transform targetTransform { get; protected set; }
 
-        protected Transform headingRotationTransform;
-        protected Transform pitchRotationTransform;
+        internal Transform headingRotationTransform;
+        internal Transform pitchRotationTransform;
         protected float currentHeadingVelocity = 0.0f;
         protected float currentPitchVelocity = 0.0f;
 
@@ -200,10 +201,26 @@ namespace LaserComm
 
         private static string noneStr = Localizer.Format("#autoLOC_6003083");
 
+
         public void SetTarget(Transform transform, string name)
         {
             targetTransform = transform;
-            targetName = name ?? noneStr;
+            if (string.IsNullOrEmpty(name))
+            {
+                targetName = noneStr;
+            }
+            else
+            {
+                targetName = Localizer.Format(name);
+            }
         }
+
+        public void UnSetTarget() => SetTarget(null, null);
+
+        public void SetTarget(CelestialBody body) => SetTarget(body?.transform, body?.displayName);
+
+        public void SetTarget(Vessel vessel) => SetTarget(vessel?.transform, vessel?.vesselName);
+
+        public void SetTarget(CommNode node) => SetTarget(node?.transform, node?.displayName);
     }
 }
