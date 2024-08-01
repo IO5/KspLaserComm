@@ -19,18 +19,6 @@ namespace LaserComm
         public Dictionary<CommNode, LaserCommNode> laserNodes = new Dictionary<CommNode, LaserCommNode>();
         public List<OpticalOccluder> opticalOccluders = new List<OpticalOccluder>();
 
-        public static bool GroundStationsUnlocked
-        {
-            get
-            {
-                if (ScenarioUpgradeableFacilities.Instance == null)
-                    return true;
-
-                var maxLevel = ScenarioUpgradeableFacilities.GetFacilityLevelCount(SpaceCenterFacility.TrackingStation);
-                return ScenarioUpgradeableFacilities.GetFacilityLevel(SpaceCenterFacility.TrackingStation) == maxLevel;
-            }
-        }
-
         public override CommNode Add(CommNode conn)
         {
             if (conn == null)
@@ -40,10 +28,13 @@ namespace LaserComm
 
             var laserNode = new LaserCommNode(conn);
 
-            if (conn.isHome && GroundStationsUnlocked)
+            if (conn.isHome)
             {
                 if (Settings.Instance.allGroundStationsHaveLasers || conn.name.EndsWith(": KSC"))
-                    laserNode.laserRelayRange = double.PositiveInfinity;
+                {
+                    if (ScenarioUpgradeableFacilities.Instance == null || ScenarioUpgradeableFacilities.GetFacilityLevel(SpaceCenterFacility.TrackingStation) == 1)
+                        laserNode.laserRelayRange = double.PositiveInfinity;
+                }
             }
 
             laserNodes.Add(conn, laserNode);

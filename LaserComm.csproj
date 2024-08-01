@@ -58,6 +58,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Harmony.cs" />
+    <Compile Include="LaserComm.cs" />
     <Compile Include="Network\CommNetVesselPatches.cs" />
     <Compile Include="Network\LaserCommLink.cs" />
     <Compile Include="Network\LaserCommNetwork.cs" />
@@ -73,7 +74,6 @@
     <ItemGroup>
       <GameDataFiles Include="$(SolutionDir)\GameData\$(ProjectName)\*.*" />
     </ItemGroup>
-    <Copy SourceFiles="@(GameDataFiles)" DestinationFolder="$(KSPInstallPath)\GameData\$(ProjectName)\" />
     <Copy SourceFiles="$(TargetDir)$(ProjectName).dll" DestinationFolder="$(KSPInstallPath)\GameData\$(ProjectName)\" />
     <Copy SourceFiles="$(TargetDir)$(ProjectName).pdb" DestinationFolder="$(KSPInstallPath)\GameData\$(ProjectName)\" />
   </Target>

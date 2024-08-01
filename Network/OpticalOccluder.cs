@@ -1,5 +1,6 @@
 ﻿using CommNet;
 using HarmonyLib;
+using Smooth.Slinq.Test;
 using System;
 using UnityEngine;
 
@@ -7,18 +8,24 @@ namespace LaserComm.Network
 {
     public class OpticalOccluder
     {
-        public CelestialBody body;
-        public float partialOcclusionExtraRadius; // TODO read from config
-        public DoubleCurve atmoOpaquenessCurve; // TODO read from config
+        public string body;
+        public float partialOcclusionExtraRadius { get; private set; }
+        public FloatCurve atmoOpaquenessCurve { get; private set; }
 
         protected Transform transform;
         protected double radius;
 
         public OpticalOccluder(CelestialBody body)
         {
-            this.body = body;
+            this.body = body.name;
             this.transform = body.transform;
             this.radius = body.Radius;
+        }
+
+        public void SetOpaquenessCurve(FloatCurve curve)
+        {
+            atmoOpaquenessCurve = curve;
+            partialOcclusionExtraRadius = curve.maxTime;
         }
 
         public bool InRange(Vector3d source, double distance)
@@ -43,7 +50,12 @@ namespace LaserComm.Network
             outerRSqr *= outerRSqr;
 
             double innerDiscriminant = halfB * halfB - source.sqrMagnitude + innerRSqr;
-            if (innerDiscriminant > 0)
+            if (innerDiscriminant <= 0)
+            {
+                if (partialOcclusionExtraRadius == 0)
+                    return 1.0f; // no atmosphere, full miss
+            }
+            else
             {
                 var intersectDist1 = (float)(-halfB - Math.Sqrt(innerDiscriminant));
                 var intersectDist2 = (float)(-halfB + Math.Sqrt(innerDiscriminant));
@@ -51,12 +63,10 @@ namespace LaserComm.Network
                 if (intersectDist1 > 0 && intersectDist2 > 0)
                     return 0.0f; // full occlusion
 
+                // facing away
+
                 if (source.sqrMagnitude >= outerRSqr)
                     return 1.0f; // facing away outside atmo, full miss
-            }
-            else if (partialOcclusionExtraRadius == 0)
-            {
-                return 1.0f; // no atmosphere, full miss
             }
 
             double outerDiscriminant = halfB * halfB - source.sqrMagnitude + outerRSqr;
@@ -67,17 +77,27 @@ namespace LaserComm.Network
             var atmoIntersectDist2 = (float)(-halfB + Math.Sqrt(outerDiscriminant));
 
             var start = source + (atmoIntersectDist1 < 0 ? Vector3d.zero : ray * atmoIntersectDist1);
-            var end = source + ray * atmoIntersectDist2;
-            if (end.sqrMagnitude > dest.sqrMagnitude)
-                end = dest;
+            var end = (ray.sqrMagnitude < atmoIntersectDist2 * atmoIntersectDist2 ? dest : source + ray * atmoIntersectDist2);
 
-            return RayMarchAtmosphere(ray, start, end);
+            return RayMarchAtmosphere(start, end);
         }
 
-        protected float RayMarchAtmosphere(Vector3d direction, Vector3d start, Vector3d end)
+        internal static int NumSteps = 10;
+        protected float RayMarchAtmosphere(Vector3d start, Vector3d end)
         {
-            // TODO
-            return 1.0f;
+            var light = 1.0f;
+            var step = (end - start) / (NumSteps - 1);
+            var stepSize = (float)step.magnitude;
+
+            for (int i = 0; i < NumSteps; ++i)
+            {
+                var altitude = (start + i * step).magnitude - radius;
+
+                var lightScatteredPer1km = atmoOpaquenessCurve.Evaluate(Mathf.Max(0, (float)altitude));
+                light *= Mathf.Exp(stepSize / 1000f * Mathf.Log(1 - lightScatteredPer1km));
+            }
+
+            return light;
         }
     }
 
@@ -87,7 +107,10 @@ namespace LaserComm.Network
         static void Postfix(ref CelestialBody ___body)
         {
             if (___body != null && LaserCommNetwork.Instance != null)
-                LaserCommNetwork.Instance.Add(new OpticalOccluder(___body));
+            {
+                if (LaserComm.Instance.OpticalOccluders.TryGetValue(___body.name, out var occluder))
+                    LaserCommNetwork.Instance.Add(occluder);
+            }
         }
     }
 }

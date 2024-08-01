@@ -8,10 +8,12 @@ using UnityEngine;
 using System.Collections.Generic;
 using static ModuleCommand;
 using static SoftMasking.SoftMask;
+using System.Text;
+using System.ComponentModel;
 
 namespace LaserComm
 {
-    public class ModuleOpticalComm : ModuleDataTransmitter, ICommAntenna//, IOverheatDisplay
+    public class ModuleOpticalComm : ModuleDataTransmitter, ICommAntenna, IModuleInfo//, IOverheatDisplay
     {
         [KSPField(isPersistant = true)]
         public bool isOn;
@@ -29,6 +31,8 @@ namespace LaserComm
 
         [KSPField(isPersistant = true)]
         protected bool hasPower = true;
+
+        protected bool handleActivation => trackingModule?.deployAnimation == null;
 
         ModuleOpticalComm()
         {
@@ -49,11 +53,16 @@ namespace LaserComm
             Fields["statusText"].guiUnfocusedRange = 10.0f;
             Fields["powerText"].guiName = "#autoLOC_6001723";
         }
+
         public override void OnStart(StartState startState)
         {
             base.OnStart(startState);
 
             trackingModule = part.Modules.GetModule<Module2AxisTracking>();
+
+            // handle on/off logic there
+            if (!handleActivation)
+                Events["ToggleComms"].active = false;
 
             SetCommsState(isOn);
             SetRelayMode(relayMode);
@@ -62,6 +71,9 @@ namespace LaserComm
             {
                 if (vessel?.connection != null)
                     vessel.connection.OnNetworkUpdate = OnNetworkUpdate;
+
+                if (!handleActivation)
+                    trackingModule.onDeployStateChange.Add(OnDeployStateChange);
             }
         }
 
@@ -92,6 +104,11 @@ namespace LaserComm
                 return false;
 
             return relayMode;
+        }
+
+        protected void OnDeployStateChange(Module2AxisTracking.DeployState state)
+        {
+            isOn = (state == Module2AxisTracking.DeployState.DEPLOYED);
         }
 
         [KSPEvent(guiActiveEditor = true, guiActiveUnfocused = true, guiActive = true, unfocusedRange = 10f, guiName = "Toggle comms")]
@@ -211,26 +228,10 @@ namespace LaserComm
                 }
                 else
                 {
-                    CommNode furthestNode = null;
-                    double furthestSqrDistance = 0;
-                    CommNode thisNode = vessel.connection.Comm;
-           
-                    foreach (var entry in thisNode)
+                    var target = FindTargetForRelay();
+                    if (target != null)
                     {
-                        (CommNode node, CommLink link) = (entry.Key, entry.Value);
-
-                        var laserLink = LaserCommNetwork.GetLaserLink(link);
-                        if (laserLink == null)
-                            continue;
-
-                        double sqrDistance = (node.position - thisNode.position).sqrMagnitude;
-                        if (sqrDistance > furthestSqrDistance)
-                            furthestNode = node;
-                    }
-
-                    if (furthestNode != null)
-                    {
-                        SetTarget(furthestNode);
+                        SetTarget(target);
                         return;
                     }
                 }
@@ -238,35 +239,106 @@ namespace LaserComm
             SetTarget(null);
         }
 
+        private CommNode FindTargetForRelay()
+        {
+            // relay priority:
+            // active vessel
+            // loaded vessels
+            // furthest vessel
+
+            CommNode thisNode = vessel.connection.Comm;
+
+            if (FlightGlobals.ActiveVessel?.connection?.ControlPath.First?.b == thisNode)
+                return FlightGlobals.ActiveVessel.connection.Comm;
+
+            var checkedVessels = new List<Vessel>();
+
+            foreach (var vessel in FlightGlobals.VesselsLoaded)
+            {
+                if (vessel.connection?.ControlPath.First?.b == thisNode)
+                    return vessel.connection.Comm;
+
+                checkedVessels.Add(vessel);
+            }
+
+            CommNode furthestNode = null;
+            double furthestSqrDistance = 0;
+
+            // search through connected unloaded
+            foreach (var entry in thisNode)
+            {
+                (CommNode node, CommLink link) = (entry.Key, entry.Value);
+
+                if (node.isHome)
+                    continue;
+
+                if (checkedVessels.Any(v => v.connection?.Comm == node))
+                    continue;
+
+                if (node.Any(e => e.Key.isHome))
+                    continue;
+
+                var laserLink = LaserCommNetwork.GetLaserLink(link);
+                if (laserLink == null)
+                    continue;
+
+                double sqrDistance = (node.position - thisNode.position).sqrMagnitude;
+                if (sqrDistance > furthestSqrDistance)
+                    furthestNode = node;
+            }
+
+            return furthestNode;
+        }
+
         private void SetTarget(CommNode node)
         {
             if (node == null)
             {
                 trackingModule.UnSetTarget();
+                statusText = Localizer.Format("#autoLOC_236147");
                 return;
             }
 
-            double sqrDistance = (vessel.connection.Comm.precisePosition - node.precisePosition).sqrMagnitude;
-            if (sqrDistance < 1000 * 1000)
-            {
-                // point at the terminal rather than the vessel itself
-                var targetVessel = FlightGlobals.VesselsLoaded.Find(v => v?.connection.Comm == node);
+            statusText = Localizer.Format("#autoLOC_6002222");
 
-                foreach (var part in targetVessel.parts)
+            if (node.isHome)
+            {
+                // TODO custom ground station
+                if (ScenarioUpgradeableFacilities.Instance != null)
                 {
-                    var module = part.Modules.GetModules<ModuleOpticalComm>().Find(m => m.relayMode && m.CanComm());
-                    var transform = module?.trackingModule?.pitchRotationTransform;
-                    if (transform != null)
+                    var trackingStationName = ScenarioUpgradeableFacilities.GetFacilityName(SpaceCenterFacility.TrackingStation);
+                    if (ScenarioUpgradeableFacilities.protoUpgradeables.TryGetValue(trackingStationName, out var trackingStation))
                     {
-                        trackingModule.SetTarget(transform, node.displayName);
-                        return;
+                        var current = trackingStation.facilityRefs.Find(p => p.enabled);
+                        if (current != null)
+                        {
+                            trackingModule.SetTarget(current.FacilityTransform, node.displayName);
+                            return;
+                        }
                     }
                 }
-                var otherTerminal = targetVessel.parts.Find(p => p.Modules.GetModules<ModuleOpticalComm>().Any(m => m.relayMode && m.CanComm()));
-
-                if (otherTerminal != null)
+            }
+            else
+            {
+                double sqrDistance = (vessel.connection.Comm.precisePosition - node.precisePosition).sqrMagnitude;
+                if (sqrDistance < 1000 * 1000)
                 {
-                    return;
+                    // point at the terminal rather than the vessel itself
+                    // NOTE: still not ideal, maybe add a transform to models to aim at
+                    var targetVessel = FlightGlobals.VesselsLoaded.Find(v => v?.connection.Comm == node);
+
+                    if (targetVessel != null)
+                    {
+                        foreach (var part in targetVessel.parts)
+                        {
+                            var module = part.Modules.GetModules<ModuleOpticalComm>().Find(m => m.relayMode && m.CanComm());
+                            if (part.transform != null)
+                            {
+                                trackingModule.SetTarget(part.transform, node.displayName);
+                                return;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -289,25 +361,69 @@ namespace LaserComm
 
         public void FixedUpdate()
         {
-            Events["ToggleComms"].active = !IsBusy();
+            Events["ToggleComms"].active = handleActivation && !IsBusy();
             Events["SwitchMode"].active = !IsBusy();
-
-            var rateMultiplier = 1.0; // TODO scalable
 
             if (!isOn)
                 return;
 
-            hasPower = true;
-            if (!resHandler.UpdateModuleResourceInputs(ref statusText, rateMultiplier, 0.9, returnOnFirstLack: true))
+            if (HighLogic.LoadedSceneIsEditor)
+                return;
+
+            var rateMultiplier = 1.0; // TODO scalable
+
+            string errorText = "";
+            hasPower = resHandler.UpdateModuleResourceInputs(ref errorText, rateMultiplier, 0.9, returnOnFirstLack: true);
+
+            if (hasPower)
             {
-                hasPower = false;
+                statusText = errorText;
+                Events["StartTransmission"].active = false;
             }
+            else
+            {
+                statusText = Localizer.Format("#autoLOC_236147");
+                Events["StartTransmission"].active = true;
+            }
+
+            if (!CommNetScenario.CommNetEnabled && CanComm())
+            {
+                // TODO test with commnet disabled
+                trackingModule?.SetTarget(FlightGlobals.GetHomeBody().transform, FlightGlobals.GetHomeBodyDisplayName());
+            }
+
         }
+
+        public override string GetModuleDisplayName()
+        {
+            return "Optical Data Transmitter";
+        }
+
+        new public string GetModuleTitle()
+        {
+            return base.GetModuleDisplayName();
+        }
+
+        new public string GetInfo()
+        {
+            var text = new StringBuilder();
+            text.Append(Localizer.Format("<b>Range: </b> <<1>>\n", laserRange));
+            text.Append("\n");
+            text.Append(Localizer.Format("#autoLOC_236840", packetSize.ToString("0.0")));
+            text.Append(Localizer.Format("#autoLOC_236841", (packetSize / packetInterval).ToString("0.0###")));
+            text.Append("\n");
+            text.Append(resHandler.PrintModuleResources(packetResourceCost / (double)packetInterval));
+
+            return text.ToString();
+        }
+
+        new public Callback<Rect> GetDrawModulePanelCallback() => null;
+
+        new public string GetPrimaryField() => null;
 
         // TODO 
         // adjustable power
         // heat production
-        // make resource consumption constant? needed?
         // editor info
         // terrain occlusion
     }
